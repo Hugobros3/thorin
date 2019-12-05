@@ -1,3 +1,4 @@
+#include "thorin/pass/codegen_prepare.h"
 #include "thorin/pass/copy_prop.h"
 #include "thorin/pass/inliner.h"
 #include "thorin/pass/mem2reg.h"
@@ -7,7 +8,6 @@
 
 // old stuff
 #include "thorin/transform/cleanup_world.h"
-#include "thorin/transform/codegen_prepare.h"
 #include "thorin/transform/flatten_tuples.h"
 #include "thorin/transform/partial_evaluation.h"
 
@@ -20,17 +20,15 @@ void optimize(World& world) {
     .create<Mem2Reg>()
     //.create<CopyProp>()
     .run();
-}
 
-void optimize_old(World& world) {
-    optimize(world);
-    /*
-    cleanup_world(world);
+    // TODO remove old stuff
     while (partial_evaluation(world, true)); // lower2cff
     flatten_tuples(world);
     cleanup_world(world);
-    codegen_prepare(world);
-    */
+
+    PassMan(world)
+    .create<CodegenPrepare>()
+    .run();
 }
 
 }

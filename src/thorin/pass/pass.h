@@ -26,13 +26,13 @@ public:
     ///@}
     /// @name hooks for the PassMan
     //@{
-    virtual bool scope(Def* nom) = 0;                          ///< Should enter scope with entry @p nom?
-    virtual bool enter(Def* nom) = 0;                          ///< Should enter @p nom within current scope?
-    virtual Def* inspect(Def* def) { return def; }             ///< Inspects a @em nominal @p Def when first encountering it.
-    virtual const Def* rewrite(const Def* def) { return def; } ///< Rewrites @em structural @p Def%s.
-    virtual bool analyze(const Def*) { return true; }          ///< Return @c true if everthing's fine, @c false if you need a @p retry.
-    virtual void retry() {}                                    ///< Setup all data for a retry.
-    virtual void clear() {}                                    ///< Must clear all info in order to operate on the next @p Scope.
+    virtual bool scope([[maybe_unused]] Def* nom) { return true; } ///< Should enter scope with entry @p nom?
+    virtual bool enter([[maybe_unused]] Def* nom) { return true; } ///< Should enter @p nom within current scope?
+    virtual Def* inspect(Def* def) { return def; }                 ///< Inspects a @em nominal @p Def when first encountering it.
+    virtual const Def* rewrite(const Def* def) { return def; }     ///< Rewrites @em structural @p Def%s.
+    virtual bool analyze(const Def*) { return true; }              ///< Return @c true if everthing's fine, @c false if you need a @p retry.
+    virtual void retry() {}                                        ///< Setup all data for a retry.
+    virtual void clear() {}                                        ///< Must clear all info in order to operate on the next @p Scope.
     ///@}
 
 private:

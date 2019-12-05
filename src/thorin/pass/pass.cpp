@@ -35,7 +35,7 @@ void PassMan::run() {
         local_.clear(s);
 
         for (auto&& pass : passes_) {
-            if (pass->scope(new_entry_))
+            if (pass->scope(old_entry_))
                 local_.passes.emplace_back(pass.get());
         }
 

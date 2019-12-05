@@ -35,6 +35,8 @@ set(THORIN_SOURCES
     analyses/verify.h
     be/c.cpp
     be/c.h
+    pass/codegen_prepare.h
+    pass/codegen_prepare.cpp
     pass/copy_prop.cpp
     pass/copy_prop.h
     pass/inliner.cpp
@@ -49,8 +51,6 @@ set(THORIN_SOURCES
     pass/pass.h
     transform/cleanup_world.cpp
     transform/cleanup_world.h
-    transform/codegen_prepare.h
-    transform/codegen_prepare.cpp
     transform/compile_ptrns.h
     transform/compile_ptrns.cpp
     transform/flatten_tuples.cpp
