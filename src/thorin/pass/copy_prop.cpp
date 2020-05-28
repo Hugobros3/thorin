@@ -4,19 +4,18 @@
 
 namespace thorin {
 
-void CopyProp::visit(Def* cur_nom, Def* vis_nom) {
+Def* CopyProp::visit(Def* cur_nom, Def* vis_nom) {
     auto cur_lam = cur_nom->isa<Lam>();
     auto vis_lam = vis_nom->isa<Lam>();
-    if (!cur_lam || !vis_lam || keep_.contains(vis_lam) || prop2param_.contains(vis_lam)) return;
-
-    auto param_lam = vis_lam;
-    if (param_lam->is_intrinsic() || param_lam->is_external()) {
-        keep_.emplace(param_lam);
-        return;
+    if (!cur_lam || !vis_lam || keep_.contains(vis_lam)) return nullptr;
+    if (vis_lam->is_intrinsic() || vis_lam->is_external()) {
+        keep_.emplace(vis_lam);
+        return nullptr;
     }
 
     // build a prop_lam where args has been propagated from param_lam
-    auto&& [visit, _] = get<Visit>(param_lam);
+    auto param_lam = man().origin(vis_lam);
+    auto&& [visit, _] = get(param_lam);
     auto& args = args_[param_lam];
     if (auto& prop_lam = visit.prop_lam; !prop_lam) {
         args.resize(param_lam->num_params());
@@ -28,10 +27,9 @@ void CopyProp::visit(Def* cur_nom, Def* vis_nom) {
 
         auto prop_domain = world().sigma(types);
         auto new_type = world().pi(prop_domain, param_lam->codomain());
-        prop_lam = man().refine(new_type, param_lam);
+        prop_lam = param_lam->stub(world(), new_type, param_lam->debug());
         man().mark_tainted(prop_lam);
         world().DLOG("param_lam => prop_lam: {}: {} => {}: {}", param_lam, param_lam->type()->domain(), prop_lam, prop_domain);
-        prop2param_[prop_lam] = param_lam;
         size_t j = 0;
         Array<const Def*> new_params(args.size(), [&](size_t i) {
             if (args[i])
@@ -42,13 +40,17 @@ void CopyProp::visit(Def* cur_nom, Def* vis_nom) {
         auto new_param = world().tuple(new_params);
         prop_lam->set(0_s, world().subst(param_lam->op(0), param_lam->param(), new_param));
         prop_lam->set(1_s, world().subst(param_lam->op(1), param_lam->param(), new_param));
+
+        return prop_lam;
     }
+
+    return nullptr;
 }
 
 const Def* CopyProp::rewrite(Def*, const Def* def) {
     if (auto app = def->isa<App>()) {
         if (auto param_lam = app->callee()->isa_nominal<Lam>()) {
-            auto&& [visit, _] = get<Visit>(param_lam);
+            auto&& [visit, _] = get(param_lam);
             auto& args = args_[param_lam];
             if (auto& prop_lam = visit.prop_lam) {
                 std::vector<const Def*> new_args;
@@ -85,7 +87,7 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
     if (auto proxy = isa_proxy(def)) {
         auto param_lam  = proxy->op(0)->as_nominal<Lam>();
         auto proxy_args = proxy->op(1)->outs();
-        auto&& [visit, undo_visit] = get<Visit>(param_lam);
+        auto&& [visit, undo_visit] = get(param_lam);
         auto& args = args_[param_lam];
         for (size_t i = 0, e = proxy_args.size(); i != e; ++i) {
             auto x = args[i];
@@ -102,8 +104,8 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
     for (size_t i = 0, e = def->num_ops(); i != e; ++i) {
         auto op = def->op(i);
         if (auto lam = op->isa_nominal<Lam>()) {
-            lam = lam2param(lam);
-            auto&& [visit, undo_visit] = get<Visit>(lam);
+            lam = man().origin(lam);
+            auto&& [visit, undo_visit] = get(lam);
             // if lam does not occur as callee - we can't do anything
             if ((!def->isa<App>() || i != 0)) {
                 if (keep_.emplace(lam).second) {

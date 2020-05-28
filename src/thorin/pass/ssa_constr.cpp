@@ -14,18 +14,18 @@ const Proxy* SSAConstr::isa_phixy(const Def* def) { if (auto p = isa_proxy(def);
 // both sloxy and phixy reference the *old* lam
 // the value map for get_val/set_val uses the *new* lam
 
-void SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
+Def* SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
     auto cur_lam = cur_nom->isa<Lam>();
-    auto mem_lam = vis_nom->isa<Lam>();
-    if (!cur_lam || !mem_lam || keep_.contains(mem_lam) || !preds_n_.contains(mem_lam)) return;
-
-    if (mem_lam->is_intrinsic() || mem_lam->is_external()) {
-        keep_.emplace(mem_lam);
-        return;
+    auto vis_lam = vis_nom->isa<Lam>();
+    if (!cur_lam || !vis_lam || keep_.contains(vis_lam) || !preds_n_.contains(vis_lam)) return nullptr;
+    if (vis_lam->is_intrinsic() || vis_lam->is_external()) {
+        keep_.emplace(vis_lam);
+        return nullptr;
     }
 
+    // build a phi_lam with phis as params if we can're reuse an old one
+    auto mem_lam = man().origin(vis_lam);
     if (auto& phis = lam2phis_[mem_lam]; !phis.empty()) {
-        // build a phi_lam with phis as params if we can're reuse an old one
         auto&& [visit, _] = get<Visit>(mem_lam);
         if (auto& phi_lam = visit.phi_lam; !phi_lam) {
             std::vector<const Def*> types;
@@ -41,11 +41,11 @@ void SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
 
             auto phi_domain = merge_sigma(mem_lam->domain(), types);
             auto new_type = world().pi(phi_domain, mem_lam->codomain());
-            phi_lam = man().refine(new_type, mem_lam);
+
+            phi_lam = mem_lam->stub(world(), new_type, mem_lam->debug());
             man().mark_tainted(phi_lam);
             world().DLOG("mem_lam => phi_lam: {}: {} => {}: {}", mem_lam, mem_lam->type()->domain(), phi_lam, phi_domain);
             preds_n_.emplace(phi_lam);
-            phi2mem_[phi_lam] = mem_lam;
 
             size_t n = phi_lam->num_params() - phis.size();
             auto new_param = world().tuple(Array<const Def*>(n, [&](auto i) { return phi_lam->param(i); }));
@@ -55,8 +55,12 @@ void SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
             size_t i = 0;
             for (auto phi : phis)
                 set_val(phi_lam, phi, phi_lam->param(n + i++));
+
+            return phi_lam;
         }
     }
+
+    return nullptr;
 }
 
 const Def* SSAConstr::rewrite(Def* cur_nom, const Def* def) {
@@ -65,7 +69,7 @@ const Def* SSAConstr::rewrite(Def* cur_nom, const Def* def) {
 
     if (auto slot = isa<Tag::Slot>(def)) {
         auto [out_mem, out_ptr] = slot->split<2>();
-        auto lam = lam2mem(cur_lam);
+        auto lam = man().origin(cur_lam);
         auto&& [enter, _] = get<Enter>(lam);
         auto slot_id = enter.num_slots++;
         auto sloxy = proxy(out_ptr->type(), {lam, world().lit_nat(slot_id)}, slot->debug());
@@ -110,7 +114,7 @@ const Def* SSAConstr::get_val(Lam* lam, const Proxy* sloxy) {
     } else {
         auto&& [visit, _] = get<Visit>(lam);
         if (preds_n_.contains(lam)) {
-            auto mem_lam = lam2mem(lam);
+            auto mem_lam = man().origin(lam);
             world().DLOG("phixy: {}/{} for {}", mem_lam, lam, sloxy);
             auto phixy = proxy(get_sloxy_type(sloxy), {mem_lam, sloxy}, sloxy->debug());
             phixy->set_name(std::string("phi_") + phixy->name());
@@ -174,7 +178,7 @@ undo_t SSAConstr::analyze(Def* cur_nom, const Def* def) {
             // TODO optimize
             //if (lam->is_basicblock() && lam != man().cur_lam())
                 //lam2info(lam).writable.insert_range(range(lam2info(man().cur_lam()).writable));
-            lam = lam2mem(lam);
+            lam = man().origin(lam);
             auto&& [visit, undo_visit] = get<Visit>(lam);
             auto& phis = lam2phis_[lam];
 

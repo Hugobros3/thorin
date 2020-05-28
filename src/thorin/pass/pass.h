@@ -34,7 +34,7 @@ public:
     /// @name hooks for the PassMan
     //@{
     /// Inspects a @p nom%inal when first visited during @p rewrite%ing @p cur_nom.
-    virtual void visit([[maybe_unused]] Def* cur_nom, [[maybe_unused]] Def* nom) {}
+    virtual Def* visit([[maybe_unused]] Def* cur_nom, [[maybe_unused]] Def* nom) { return nullptr; }
 
     /// Rewrites a @em structural @p def within @p cur_nom. Returns the replacement.
     virtual const Def* rewrite(Def* cur_nom, const Def* def) = 0;
@@ -89,6 +89,7 @@ public:
     //@{
     template<class D> // D may be "Def" or "const Def"
     D* map(const Def* old_def, D* new_def) { cur_state().old2new[old_def] = new_def; return new_def; }
+
     const Def* lookup(const Def* old_def) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             const auto& old2new = i->old2new;
@@ -98,6 +99,23 @@ public:
         return nullptr;
     }
 
+    void refine(Def* old_nom, Def* new_nom) { cur_state().origin[new_nom] = old_nom; }
+
+    template<class T = Def>
+    T* origin(T* new_nom) {
+        for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
+            const auto& origin = i->origin;
+            if (auto i = origin.find(new_nom); i != origin.end()) return i->second->template as<T>();
+        }
+
+        return new_nom;
+    }
+    //template<class T = Def>
+    //T* origin(T* new_nom) {
+        //if (auto old_nom = _origin(new_nom)) return origin(old_nom);
+        //return new_nom;
+    //}
+
     bool is_tainted(Def* nom) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             if (i->tainted.contains(nom)) return true;
@@ -106,24 +124,6 @@ public:
         return false;
     }
     bool mark_tainted(Def* nom) { return cur_state().tainted.emplace(nom).second; }
-
-    template<class T = Def>
-    T* refine(const Def* new_type, T* old_nom) {
-        auto [i, inserted] = refine_.emplace(old_nom, nullptr);
-        auto& new_nom = i->second;
-        if (inserted || new_nom->type() != new_type) {
-            new_nom = old_nom->stub(world(), new_type, old_nom->debug());
-            origin_[new_nom] = old_nom;
-        }
-
-        return new_nom->template as<T>();
-    }
-
-    template<class T = Def>
-    T* origin(T* new_nom) {
-        if (auto old_nom = origin_.lookup(new_nom)) return (*old_nom)->template as<T>();
-        return new_nom;
-    }
     //@}
 
 private:
@@ -143,6 +143,7 @@ private:
         Def2Def old2new;
         DefSet analyzed;
         NomSet tainted;
+        Nom2Nom origin;
     };
 
     void push_state();

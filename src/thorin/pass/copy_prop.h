@@ -14,7 +14,7 @@ public:
         : Pass(man, index, "copy_prop")
     {}
 
-    void visit(Def*, Def*) override;
+    Def* visit(Def*, Def*) override;
     const Def* rewrite(Def*, const Def*) override;
     undo_t analyze(Def*, const Def*) override;
 
@@ -22,19 +22,12 @@ public:
         Lam* prop_lam = nullptr;
     };
 
-    struct Enter {
-    };
-
-    using State = std::tuple<LamMap<Visit>, LamMap<Enter>>;
+    using State = std::tuple<LamMap<Visit>>;
 
 private:
-    template<class T> // T = Visit or Enter
-    std::pair<T&, undo_t> get(Lam* lam) { auto [i, undo, ins] = insert<LamMap<T>>(lam); return {i->second, undo}; }
-    Lam* prop2param(Lam* prop_lam) { auto param_lam = prop2param_.lookup(prop_lam); return param_lam ? *param_lam : nullptr; }
-    Lam* lam2param(Lam* lam) { auto param_lam = prop2param(lam); return param_lam ? param_lam : lam; }
+    std::pair<Visit&, undo_t> get(Lam* lam) { auto [i, undo, ins] = insert<LamMap<Visit>>(lam); return {i->second, undo}; }
 
     LamMap<std::vector<const Def*>> args_;
-    LamMap<Lam*> prop2param_;
     DefSet keep_;
 };
 
