@@ -99,23 +99,6 @@ public:
         return nullptr;
     }
 
-    void refine(Def* old_nom, Def* new_nom) { cur_state().origin[new_nom] = old_nom; }
-
-    template<class T = Def>
-    T* origin(T* new_nom) {
-        for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
-            const auto& origin = i->origin;
-            if (auto i = origin.find(new_nom); i != origin.end()) return i->second->template as<T>();
-        }
-
-        return new_nom;
-    }
-    //template<class T = Def>
-    //T* origin(T* new_nom) {
-        //if (auto old_nom = _origin(new_nom)) return origin(old_nom);
-        //return new_nom;
-    //}
-
     bool is_tainted(Def* nom) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             if (i->tainted.contains(nom)) return true;
@@ -143,7 +126,7 @@ private:
         Def2Def old2new;
         DefSet analyzed;
         NomSet tainted;
-        Nom2Nom origin;
+        NomMap<std::pair<size_t, Def*>> trace;
     };
 
     void push_state();
@@ -161,11 +144,27 @@ private:
         return false;
     }
 
+    void refine(size_t i, Def* old_nom, Def* new_nom) { cur_state().trace.emplace(new_nom, std::pair(i, old_nom)); }
+    template<class T>
+    std::tuple<T*, T*, undo_t> trace(size_t index, T* cur_nom, T* origin) {
+        for (undo_t undo = states_.size(); undo-- != 0;) {
+            const auto& map = states_[undo].trace;
+            if (auto i = map.find(cur_nom); i != map.end()) {
+                auto [x, old_nom_] = i->second;
+                auto old_nom = old_nom_->template as<T>();
+                if (index == x) return {old_nom, cur_nom, undo};
+                return trace(index, old_nom, origin);
+            }
+        }
+
+        return {origin, origin, No_Undo};
+    }
+
     World& world_;
     std::vector<PassPtr> passes_;
     std::deque<State> states_;
     Nom2Nom refine_;
-    Nom2Nom origin_;
+    Nom2Nom trace_;
 
     template<class P> friend class Pass;
 };
@@ -209,6 +208,11 @@ public:
         assert(inserted);
         return std::tuple(i, states().size()-1, true);
     }
+    //@}
+    /// @name refine/trace
+    //@{
+    void refine(Def* old_nom, Def* new_nom) { return man().refine(index(), old_nom, new_nom); }
+    template<class T> std::tuple<T*, T*, undo_t> trace(T* new_nom) { return man().trace(index(), new_nom, new_nom); }
     //@}
     /// @name alloc/dealloc state
     //@{

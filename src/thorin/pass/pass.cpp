@@ -85,9 +85,8 @@ const Def* PassMan::rewrite(Def* cur_nom, const Def* old_def) {
 
     if (auto nom = old_def->isa_nominal()) {
         world().DLOG("visit: {} within {}", nom, cur_nom);
-        for (auto&& pass : passes_) {
-            if (auto new_nom = pass->visit(cur_nom, nom)) refine(nom, new_nom);
-        }
+        for (auto&& pass : passes_)
+            pass->visit(cur_nom, nom);
 
         return map(nom, nom);
     }

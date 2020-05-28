@@ -18,15 +18,9 @@ public:
     const Def* rewrite(Def*, const Def*) override;
     undo_t analyze(Def*, const Def*) override;
 
-    struct Visit {
-        Lam* prop_lam = nullptr;
-    };
-
-    using State = std::tuple<LamMap<Visit>>;
+    struct State {};
 
 private:
-    std::pair<Visit&, undo_t> get(Lam* lam) { auto [i, undo, ins] = insert<LamMap<Visit>>(lam); return {i->second, undo}; }
-
     LamMap<std::vector<const Def*>> args_;
     DefSet keep_;
 };

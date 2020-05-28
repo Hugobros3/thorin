@@ -16,8 +16,10 @@ namespace thorin {
 
 void optimize(World& world) {
     PassMan(world)
-    .create<PartialEval>()
     .create<Inliner>()
+    .run();
+
+    PassMan(world)
     .create<SSAConstr>()
     .create<CopyProp>()
     .run();
