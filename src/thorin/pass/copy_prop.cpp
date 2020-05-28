@@ -18,7 +18,7 @@ void CopyProp::visit(Def* cur_nom, Def* vis_nom) {
     // build a prop_lam where args has been propagated from param_lam
     auto&& [visit, _] = get<Visit>(param_lam);
     auto& args = args_[param_lam];
-    if (auto& visit_prop_lam = visit.prop_lam; !visit_prop_lam) {
+    if (auto& prop_lam = visit.prop_lam; !prop_lam) {
         args.resize(param_lam->num_params());
         std::vector<const Def*> types;
         for (size_t i = 0, e = args.size(); i != e; ++i) {
@@ -28,12 +28,10 @@ void CopyProp::visit(Def* cur_nom, Def* vis_nom) {
 
         auto prop_domain = world().sigma(types);
         auto new_type = world().pi(prop_domain, param_lam->codomain());
-        auto& prop_lam = man().reincarnate<Lam>(param_lam);
-        if (!prop_lam || prop_lam->type() != new_type) prop_lam = world().lam(new_type, param_lam->debug());
+        prop_lam = man().refine(new_type, param_lam);
         man().mark_tainted(prop_lam);
         world().DLOG("param_lam => prop_lam: {}: {} => {}: {}", param_lam, param_lam->type()->domain(), prop_lam, prop_domain);
         prop2param_[prop_lam] = param_lam;
-        visit_prop_lam = prop_lam;
         size_t j = 0;
         Array<const Def*> new_params(args.size(), [&](size_t i) {
             if (args[i])

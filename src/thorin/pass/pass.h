@@ -90,20 +90,6 @@ public:
     template<class D> // D may be "Def" or "const Def"
     D* map(const Def* old_def, D* new_def) { cur_state().old2new[old_def] = new_def; return new_def; }
     const Def* lookup(const Def* old_def) {
-        if (auto new_def = _lookup(old_def)) {
-            while (true) {
-                world().DLOG("{} -> {}", old_def, new_def);
-                old_def = new_def;
-                new_def = _lookup(old_def);
-                if (new_def == nullptr) return old_def;
-                if (new_def == old_def) return new_def;
-            }
-        }
-
-        return nullptr;
-    }
-
-    const Def* _lookup(const Def* old_def) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             const auto& old2new = i->old2new;
             if (auto i = old2new.find(old_def); i != old2new.end()) return i->second;
@@ -111,6 +97,7 @@ public:
 
         return nullptr;
     }
+
     bool is_tainted(Def* nom) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             if (i->tainted.contains(nom)) return true;
@@ -119,10 +106,23 @@ public:
         return false;
     }
     bool mark_tainted(Def* nom) { return cur_state().tainted.emplace(nom).second; }
-    template<class T = Def> T*& reincarnate(T* old_nom) {
-        auto [i, inserted] = reincanate_.emplace(old_nom, nullptr);
-        assert(inserted || i->second->template isa<T>());
-        return (T*&) i->second;
+
+    template<class T = Def>
+    T* refine(const Def* new_type, T* old_nom) {
+        auto [i, inserted] = refine_.emplace(old_nom, nullptr);
+        auto& new_nom = i->second;
+        if (inserted || new_nom->type() != new_type) {
+            new_nom = old_nom->stub(world(), new_type, old_nom->debug());
+            origin_[new_nom] = old_nom;
+        }
+
+        return new_nom->template as<T>();
+    }
+
+    template<class T = Def>
+    T* origin(T* new_nom) {
+        if (auto old_nom = origin_.lookup(new_nom)) return (*old_nom)->template as<T>();
+        return new_nom;
     }
     //@}
 
@@ -163,7 +163,8 @@ private:
     World& world_;
     std::vector<PassPtr> passes_;
     std::deque<State> states_;
-    Nom2Nom reincanate_;
+    Nom2Nom refine_;
+    Nom2Nom origin_;
 
     template<class P> friend class Pass;
 };
@@ -178,12 +179,6 @@ public:
         : PassBase(man, index, name)
     {}
 
-    /// @name state-related getters
-    //@{
-    auto& states() { return man().states_; }
-    auto& state(size_t i) { return *static_cast<typename P::State*>(states()[i].data[index()]); }
-    auto& cur_state() { assert(!states().empty()); return *static_cast<typename P::State*>(states().back().data[index()]); }
-    //@}
     /// @name search in the state stack
     //@{
     /// Searches states from back to top in the set @p S for @p key and puts it into @p S if not found.
@@ -218,6 +213,14 @@ public:
     //@{
     void* alloc() override { return new typename P::State(); }
     void dealloc(void* state) override { delete static_cast<typename P::State*>(state); }
+    //@}
+
+private:
+    /// @name state-related getters
+    //@{
+    auto& states() { return man().states_; }
+    auto& state(size_t i) { return *static_cast<typename P::State*>(states()[i].data[index()]); }
+    auto& cur_state() { assert(!states().empty()); return *static_cast<typename P::State*>(states().back().data[index()]); }
     //@}
 };
 
