@@ -27,8 +27,7 @@ Def* SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
         return nullptr;
     }
 
-    // build a phi_lam with phis as params if we can're reuse an old one
-    auto [mem_lam, phi_lam, _] = trace(vis_lam);
+    auto [mem_lam, phi_lam] = trace(vis_lam);
     if (auto& phis = lam2phis_[mem_lam]; !phis.empty()) {
         auto&& [visit, _] = get<Visit>(mem_lam);
         if (auto& phi_lam = visit.phi_lam; !phi_lam) {
@@ -74,8 +73,8 @@ const Def* SSAConstr::rewrite(Def* cur_nom, const Def* def) {
 
     if (auto slot = isa<Tag::Slot>(def)) {
         auto [out_mem, out_ptr] = slot->split<2>();
-        auto [mem_lam, phi_lam, _] = trace(cur_lam);
-        auto&& [enter, __] = get<Enter>(lam);
+        auto [mem_lam, phi_lam] = trace(cur_lam);
+        auto&& [enter, _] = get<Enter>(mem_lam);
         auto slot_id = enter.num_slots++;
         auto sloxy = proxy(out_ptr->type(), {mem_lam, world().lit_nat(slot_id)}, slot->debug());
         world().DLOG("sloxy: {}", sloxy);

@@ -14,7 +14,7 @@ Def* CopyProp::visit(Def* cur_nom, Def* vis_nom) {
     }
 
     // build a prop_lam where args has been propagated from param_lam
-    auto [param_lam, prop_lam, _] = trace(vis_lam);
+    auto [param_lam, prop_lam] = trace(vis_lam);
     if (param_lam == prop_lam) {
         auto& args = args_[param_lam];
         args.resize(param_lam->num_params());
@@ -41,6 +41,7 @@ Def* CopyProp::visit(Def* cur_nom, Def* vis_nom) {
         prop_lam->set(1_s, world().subst(param_lam->op(1), param_lam->param(), new_param));
 
         refine(param_lam, prop_lam);
+        visit_undo(param_lam);
 
         return prop_lam;
     }
@@ -51,7 +52,7 @@ Def* CopyProp::visit(Def* cur_nom, Def* vis_nom) {
 const Def* CopyProp::rewrite(Def*, const Def* def) {
     if (auto app = def->isa<App>()) {
         if (auto lam = app->callee()->isa_nominal<Lam>()) {
-            auto [param_lam, prop_lam, _] = trace(lam);
+            auto [param_lam, prop_lam] = trace(lam);
             if (param_lam != prop_lam) {
                 auto& args = args_[param_lam];
                 std::vector<const Def*> new_args;
@@ -86,7 +87,7 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
     if (auto proxy = def->isa<Proxy>(); proxy && proxy->index() != index()) return No_Undo;
 
     if (auto proxy = isa_proxy(def)) {
-        auto&& [param_lam, prop_lam, undo] = trace(proxy->op(0)->as_nominal<Lam>());
+        auto&& [param_lam, prop_lam] = trace(proxy->op(0)->as_nominal<Lam>());
         auto proxy_args = proxy->op(1)->outs();
         auto& args = args_[param_lam];
         for (size_t i = 0, e = proxy_args.size(); i != e; ++i) {
@@ -96,19 +97,20 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
             world().DLOG("{} = {} join {}", args[i], xx, proxy_args[i]);
         }
 
-        return undo;
+
+        return visit_undo(param_lam);
     }
 
     auto result = No_Undo;
     for (size_t i = 0, e = def->num_ops(); i != e; ++i) {
         auto op = def->op(i);
         if (auto lam = op->isa_nominal<Lam>()) {
-            auto [param_lam, prop_lam, undo] = trace(lam);
+            auto [param_lam, prop_lam] = trace(lam);
             // if lam does not occur as callee - we can't do anything
             if ((!def->isa<App>() || i != 0)) {
                 if (keep_.emplace(lam).second) {
                     world().DLOG("keep: {}", lam);
-                    result = std::min(result, undo);
+                    result = std::min(result, visit_undo(param_lam));
                 }
             }
         }

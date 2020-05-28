@@ -32,6 +32,7 @@ void PassMan::pop_states(size_t undo) {
 
 void PassMan::run() {
     world().ILOG("run");
+    refine_.resize(num_passes());
     push_state();
 
     for (auto&& pass : passes_)

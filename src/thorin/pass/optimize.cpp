@@ -20,7 +20,7 @@ void optimize(World& world) {
     .run();
 
     PassMan(world)
-    .create<SSAConstr>()
+    //.create<SSAConstr>()
     .create<CopyProp>()
     .run();
 }
