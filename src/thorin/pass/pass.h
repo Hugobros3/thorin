@@ -33,9 +33,6 @@ public:
     ///@}
     /// @name hooks for the PassMan
     //@{
-    /// Inspects a @p nom%inal when first visited during @p rewrite%ing @p cur_nom.
-    virtual Def* visit([[maybe_unused]] Def* cur_nom, [[maybe_unused]] Def* nom) { return nullptr; }
-
     /// Rewrites a @em structural @p def within @p cur_nom. Returns the replacement.
     virtual const Def* rewrite(Def* cur_nom, const Def* def) = 0;
 
@@ -90,13 +87,13 @@ public:
     template<class D> // D may be "Def" or "const Def"
     D* map(const Def* old_def, D* new_def) { cur_state().old2new[old_def] = new_def; return new_def; }
 
-    const Def* lookup(const Def* old_def) {
+    std::optional<const Def*> lookup(const Def* old_def) {
         for (auto i = states_.rbegin(), e = states_.rend(); i != e; ++i) {
             const auto& old2new = i->old2new;
             if (auto i = old2new.find(old_def); i != old2new.end()) return i->second;
         }
 
-        return nullptr;
+        return {};
     }
 
     bool is_tainted(Def* nom) {
@@ -144,8 +141,15 @@ private:
     }
 
     void refine(size_t i, Def* old_nom, Def* new_nom) {
-        refine_[i].emplace(old_nom, new_nom);
-        trace_.emplace(new_nom, std::pair(i, old_nom));
+        refine_[i][old_nom] = new_nom;
+        trace_[new_nom] = std::pair(i, old_nom);
+    }
+
+    template<class T>
+    std::optional<T*> refine(size_t index, T* old_nom) {
+        auto i = refine_[index].find(old_nom);
+        if (i != refine_[index].end()) return {i->second->template as<T>()};
+        return {};
     }
 
     template<class T>
@@ -160,14 +164,16 @@ private:
         return {origin, origin};
     }
 
-    void unrefine(size_t i, Def* old_nom, Def* new_nom) {
-        auto i1 = refine_[i].find(old_nom);
-        assert(i1 != refine_[i].end() && i1->second == new_nom);
-        refine_[i].erase(i1);
+    void invalidate(size_t i, Def* new_nom) {
+        if (auto i1 = trace_.find(new_nom); i1 != trace_.end()) {
+            auto [index, old_nom] = i1->second;
+            assert(index == i);
+            trace_.erase(i1);
 
-        auto i2 = trace_.find(old_nom);
-        assert(i2 != trace_.end() && i2->second.first == i && i2->second.second == new_nom);
-        trace_.erase(i2);
+            auto i2 = refine_[i].find(old_nom);
+            assert(i2 != refine_[i].end() && i2->second == new_nom);
+            refine_[i].erase(i2);
+        }
     }
 
     World& world_;
@@ -219,11 +225,12 @@ public:
         return std::tuple(i, states().size()-1, true);
     }
     //@}
-    /// @name refine/trace
+    /// @name refine/trace/invalidate
     //@{
     void refine(Def* old_nom, Def* new_nom) { return man().refine(index(), old_nom, new_nom); }
+    template<class T> std::optional<T*> refine(T* old_nom) { return man().refine(index(), old_nom); }
     template<class T> std::pair<T*, T*> trace(T* new_nom) { return man().trace(index(), new_nom, new_nom); }
-    void unrefine(Def* old_nom, Def* new_nom) { return man().unrefine(index(), old_nom, new_nom); }
+    void invalidate(Def* new_nom) { return man().invalidate(index(), new_nom); }
     //@}
     /// @name alloc/dealloc state
     //@{

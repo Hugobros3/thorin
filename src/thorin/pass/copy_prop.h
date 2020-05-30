@@ -14,13 +14,13 @@ public:
         : Pass(man, index, "copy_prop")
     {}
 
-    Def* visit(Def*, Def*) override;
     const Def* rewrite(Def*, const Def*) override;
     undo_t analyze(Def*, const Def*) override;
 
     using State = std::tuple<LamSet>;
 
 private:
+    Lam* param2prop(Def*);
     undo_t visit_undo(Lam* lam) { auto [i, undo, ins] = put<LamSet>(lam); return undo; }
 
     LamMap<std::vector<const Def*>> args_;

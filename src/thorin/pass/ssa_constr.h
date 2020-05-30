@@ -18,7 +18,6 @@ public:
         : Pass(man, index, "ssa_constr")
     {}
 
-    Def* visit(Def*, Def*) override;
     const Def* rewrite(Def*, const Def*) override;
     undo_t analyze(Def*, const Def*) override;
 
@@ -37,6 +36,7 @@ public:
     using State = std::tuple<LamMap<Visit>, LamMap<Enter>>;
 
 private:
+    Lam* mem2phi(Lam*);
     const Proxy* isa_sloxy(const Def*);
     const Proxy* isa_phixy(const Def*);
     const Def* get_val(Lam*, const Proxy*);

@@ -18,16 +18,16 @@ const Proxy* SSAConstr::isa_phixy(const Def* def) { if (auto p = isa_proxy(def);
 // a -> b -> c -> d
 // 0 <- 1 <- 2 <- 3
 
-Def* SSAConstr::visit(Def* cur_nom, Def* vis_nom) {
-    auto cur_lam = cur_nom->isa<Lam>();
-    auto vis_lam = vis_nom->isa<Lam>();
-    if (!cur_lam || !vis_lam || keep_.contains(vis_lam) || !preds_n_.contains(vis_lam)) return nullptr;
-    if (vis_lam->is_intrinsic() || vis_lam->is_external()) {
-        keep_.emplace(vis_lam);
+Lam* SSAConstr::mem2phi(Lam* lam) {
+    if (keep_.contains(lam) || !preds_n_.contains(lam)) return nullptr;
+    if (lam->is_intrinsic() || lam->is_external()) {
+        keep_.emplace(lam);
         return nullptr;
     }
 
-    auto [mem_lam, phi_lam] = trace(vis_lam);
+    auto [mem_lam, phi_lam] = trace(lam);
+    if (mem_lam != phi_lam) return phi_lam;
+
     if (auto& phis = lam2phis_[mem_lam]; !phis.empty()) {
         auto&& [visit, _] = get<Visit>(mem_lam);
         if (auto& phi_lam = visit.phi_lam; !phi_lam) {
@@ -97,8 +97,7 @@ const Def* SSAConstr::rewrite(Def* cur_nom, const Def* def) {
         }
     } else if (auto app = def->isa<App>()) {
         if (auto mem_lam = app->callee()->isa_nominal<Lam>()) {
-            auto&& [visit, _] = get<Visit>(mem_lam);
-            if (auto& phi_lam = visit.phi_lam) {
+            if (auto phi_lam = mem2phi(mem_lam)) {
                 auto& phis = lam2phis_[mem_lam];
                 auto phi = phis.begin();
                 Array<const Def*> args(phis.size(), [&](auto) { return get_val(cur_lam, *phi++); });
