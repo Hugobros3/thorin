@@ -14,23 +14,13 @@ const Proxy* SSAConstr::isa_phixy(const Def* def) { if (auto p = isa_proxy(def);
 // both sloxy and phixy reference the *old* lam
 // the value map for get_val/set_val uses the *new* lam
 
-//   A    B    C
-// a -> b -> c -> d
-// 0 <- 1 <- 2 <- 3
+Lam* SSAConstr::mem2phi(Def* nom) {
+    auto lam = nom->isa<Lam>();
+    if (lam == nullptr || lam->is_intrinsic() || lam->is_external() || keep_.contains(lam)) return nullptr;
+    if (auto phi_lam = refine(lam)) return *phi_lam;
 
-Lam* SSAConstr::mem2phi(Lam* lam) {
-    if (keep_.contains(lam) || !preds_n_.contains(lam)) return nullptr;
-    if (lam->is_intrinsic() || lam->is_external()) {
-        keep_.emplace(lam);
-        return nullptr;
-    }
-
-    auto [mem_lam, phi_lam] = trace(lam);
-    if (mem_lam != phi_lam) return phi_lam;
-
-    if (auto& phis = lam2phis_[mem_lam]; !phis.empty()) {
-        auto&& [visit, _] = get<Visit>(mem_lam);
-        if (auto& phi_lam = visit.phi_lam; !phi_lam) {
+    if (auto [mem_lam, phi_lam] = trace(lam); mem_lam == phi_lam && lam == mem_lam) {
+        if (auto& phis = lam2phis_[mem_lam]; !phis.empty()) {
             std::vector<const Def*> types;
             for (auto i = phis.begin(), e = phis.end(); i != e;) {
                 auto sloxy = *i;
@@ -59,6 +49,10 @@ Lam* SSAConstr::mem2phi(Lam* lam) {
             size_t i = 0;
             for (auto phi : phis)
                 set_val(phi_lam, phi, phi_lam->param(n + i++));
+
+
+            refine(mem_lam, phi_lam);
+            get<Visit>(mem_lam);
 
             return phi_lam;
         }
@@ -166,14 +160,14 @@ undo_t SSAConstr::analyze(Def* cur_nom, const Def* def) {
             if (keep_.contains(phixy)) {
                 if (keep_.emplace(sloxy).second) {
                     world().DLOG("keep: {}; I can't adjust {}", sloxy, phixy_lam);
-                    get<Visit>(phixy_lam).first.phi_lam = nullptr;
+                    invalidate(phixy_lam);
                     if (auto i = phis.find(sloxy); i != phis.end()) phis.erase(i);
                     auto&& [_, undo_visit] = get<Visit>(sloxy_lam);
                     return undo_visit;
                 }
             } else {
                 phis.emplace(sloxy);
-                get<Visit>(phixy_lam).first.phi_lam = nullptr;
+                invalidate(phixy_lam);
                 world().DLOG("phi needed: phixy {} for sloxy {} for phixy_lam {}", phixy, sloxy, phixy_lam);
                 auto&& [_, undo_visit] = get<Visit>(phixy_lam);
                 return undo_visit;

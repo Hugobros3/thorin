@@ -6,12 +6,7 @@ namespace thorin {
 
 Lam* CopyProp::param2prop(Def* nom) {
     auto lam = nom->isa<Lam>();
-    if (lam == nullptr || keep_.contains(lam)) return nullptr;
-    if (lam->is_intrinsic() || lam->is_external()) {
-        keep_.emplace(lam);
-        return nullptr;
-    }
-
+    if (lam == nullptr || lam->is_intrinsic() || lam->is_external() || keep_.contains(lam)) return nullptr;
     if (auto prop_lam = refine(lam)) return *prop_lam;
 
     // build a prop_lam where args has been propagated from param_lam

@@ -24,7 +24,6 @@ public:
     struct Visit {
         Lam* pred = nullptr;
         enum { Preds0, Preds1 } preds;
-        Lam* phi_lam = nullptr;
     };
 
     struct Enter {
@@ -36,7 +35,7 @@ public:
     using State = std::tuple<LamMap<Visit>, LamMap<Enter>>;
 
 private:
-    Lam* mem2phi(Lam*);
+    Lam* mem2phi(Def*);
     const Proxy* isa_sloxy(const Def*);
     const Proxy* isa_phixy(const Def*);
     const Def* get_val(Lam*, const Proxy*);
