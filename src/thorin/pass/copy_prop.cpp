@@ -6,41 +6,39 @@ namespace thorin {
 
 Lam* CopyProp::param2prop(Def* nom) {
     auto lam = nom->isa<Lam>();
-    if (lam == nullptr || lam->is_intrinsic() || lam->is_external() || keep_.contains(lam)) return nullptr;
+    if (lam == nullptr || lam->num_params() == 0 || !lam->is_set() || lam->is_external() || keep_.contains(lam)) return nullptr;
     if (auto prop_lam = refine(lam)) return *prop_lam;
 
-    // build a prop_lam where args has been propagated from param_lam
-    if (auto [param_lam, prop_lam] = trace(lam); param_lam == prop_lam && lam == param_lam) {
-        auto& args = args_[param_lam];
-        args.resize(param_lam->num_params());
-        std::vector<const Def*> types;
-        for (size_t i = 0, e = args.size(); i != e; ++i) {
-            if (auto arg = args[i]; arg && arg->isa<Top>())
-                types.emplace_back(arg->type());
-        }
+    auto [param_lam, prop_lam] = trace(lam);
+    if (param_lam != prop_lam && prop_lam == lam) return nullptr; // we've already propagated param_lam -> prop_lam
 
-        auto new_type = world().pi(world().sigma(types), param_lam->codomain());
-        prop_lam = param_lam->stub(world(), new_type, param_lam->debug());
-        man().mark_tainted(prop_lam);
-        world().DLOG("param_lam => prop_lam: {}: {} => {}: {}", param_lam, param_lam->type(), prop_lam, prop_lam->type());
-        size_t j = 0;
-        Array<const Def*> new_params(args.size(), [&](size_t i) {
-            if (args[i])
-                return args[i]->isa<Top>() ? prop_lam->param(j++) : args[i];
-            else
-                return world().bot(param_lam->param(i)->type());
-        });
-        auto new_param = world().tuple(new_params);
-        prop_lam->set(0_s, world().subst(param_lam->op(0), param_lam->param(), new_param));
-        prop_lam->set(1_s, world().subst(param_lam->op(1), param_lam->param(), new_param));
-
-        refine(param_lam, prop_lam);
-        visit_undo(param_lam);
-
-        return prop_lam;
+    auto& args = args_[param_lam];
+    args.resize(param_lam->num_params());
+    std::vector<const Def*> types;
+    for (size_t i = 0, e = args.size(); i != e; ++i) {
+        if (auto arg = args[i]; arg && arg->isa<Top>())
+            types.emplace_back(arg->type());
     }
 
-    return nullptr;
+    auto new_type = world().pi(world().sigma(types), param_lam->codomain());
+    prop_lam = param_lam->stub(world(), new_type, param_lam->debug());
+    man().mark_tainted(prop_lam);
+    world().DLOG("param_lam => prop_lam: {}: {} => {}: {}", param_lam, param_lam->type(), prop_lam, prop_lam->type());
+    size_t j = 0;
+    Array<const Def*> new_params(args.size(), [&](size_t i) {
+        if (args[i])
+            return args[i]->isa<Top>() ? prop_lam->param(j++) : args[i];
+        else
+            return world().bot(param_lam->param(i)->type());
+    });
+    auto new_param = world().tuple(new_params);
+    prop_lam->set(0_s, world().subst(param_lam->op(0), param_lam->param(), new_param));
+    prop_lam->set(1_s, world().subst(param_lam->op(1), param_lam->param(), new_param));
+
+    refine(param_lam, prop_lam);
+    visit_undo(param_lam);
+
+    return prop_lam;
 }
 
 const Def* CopyProp::rewrite(Def*, const Def* def) {
