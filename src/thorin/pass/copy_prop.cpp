@@ -7,6 +7,7 @@ namespace thorin {
 Lam* CopyProp::param2prop(Def* nom) {
     auto lam = nom->isa<Lam>();
     if (lam == nullptr || lam->num_params() == 0 || !lam->is_set() || lam->is_external() || keep_.contains(lam)) return nullptr;
+#if 0
     if (auto prop_lam = refine(lam)) return *prop_lam;
 
     auto [param_lam, prop_lam] = trace(lam);
@@ -39,9 +40,12 @@ Lam* CopyProp::param2prop(Def* nom) {
     visit_undo(param_lam);
 
     return prop_lam;
+#endif
+    return nullptr;
 }
 
 const Def* CopyProp::rewrite(Def*, const Def* def) {
+#if 0
     if (auto app = def->isa<App>()) {
         if (auto param_lam = app->callee()->isa_nominal<Lam>()) {
             if (auto prop_lam = param2prop(param_lam)) {
@@ -60,6 +64,7 @@ const Def* CopyProp::rewrite(Def*, const Def* def) {
         }
     }
 
+#endif
     return def;
 }
 
@@ -73,6 +78,8 @@ void join(const Def*& a, const Def* b) {
 }
 
 undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
+    return No_Undo;
+#if 0
     auto cur_lam = cur_nom->isa<Lam>();
     if (!cur_lam || def->isa<Param>()) return No_Undo;
     if (auto proxy = def->isa<Proxy>(); proxy && proxy->index() != index()) return No_Undo;
@@ -88,7 +95,7 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
             world().DLOG("{} = {} join {}", args[i], xx, proxy_args[i]);
         }
 
-        invalidate(*refine(param_lam));
+        //invalidate(*refine(param_lam));
         return visit_undo(param_lam);
     }
 
@@ -96,7 +103,7 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
     for (size_t i = 0, e = def->num_ops(); i != e; ++i) {
         auto op = def->op(i);
         if (auto lam = op->isa_nominal<Lam>()) {
-            auto [param_lam, prop_lam] = trace(lam);
+            //auto [param_lam, prop_lam] = trace(lam);
             // if lam does not occur as callee - we can't do anything
             if ((!def->isa<App>() || i != 0)) {
                 if (param_lam != prop_lam && keep_.emplace(lam).second) {
@@ -109,6 +116,7 @@ undo_t CopyProp::analyze(Def* cur_nom, const Def* def) {
     }
 
     return result;
+#endif
 }
 
 }

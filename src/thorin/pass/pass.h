@@ -140,47 +140,9 @@ private:
         return false;
     }
 
-    void refine(size_t i, Def* old_nom, Def* new_nom) {
-        refine_[i][old_nom] = new_nom;
-        trace_[new_nom] = std::pair(i, old_nom);
-    }
-
-    template<class T>
-    std::optional<T*> refine(size_t index, T* old_nom) {
-        auto i = refine_[index].find(old_nom);
-        if (i != refine_[index].end()) return {i->second->template as<T>()};
-        return {};
-    }
-
-    template<class T>
-    std::pair<T*, T*> trace(size_t i, T* cur_nom, T* origin) {
-        if (auto it = trace_.find(cur_nom); it != trace_.end()) {
-            auto [x, old_nom_] = it->second;
-            auto old_nom = old_nom_->template as<T>();
-            if (i == x) return {old_nom, cur_nom};
-            return trace(i, old_nom, origin);
-        }
-
-        return {origin, origin};
-    }
-
-    void invalidate(size_t i, Def* new_nom) {
-        if (auto i1 = trace_.find(new_nom); i1 != trace_.end()) {
-            auto [index, old_nom] = i1->second;
-            assert(index == i);
-            trace_.erase(i1);
-
-            auto i2 = refine_[i].find(old_nom);
-            assert(i2 != refine_[i].end() && i2->second == new_nom);
-            refine_[i].erase(i2);
-        }
-    }
-
     World& world_;
     std::vector<PassPtr> passes_;
     std::deque<State> states_;
-    std::vector<Nom2Nom> refine_;
-    NomMap<std::pair<size_t, Def*>> trace_;
 
     template<class P> friend class Pass;
 };
@@ -224,13 +186,6 @@ public:
         assert(inserted);
         return std::tuple(i, states().size()-1, true);
     }
-    //@}
-    /// @name refine/trace/invalidate
-    //@{
-    void refine(Def* old_nom, Def* new_nom) { return man().refine(index(), old_nom, new_nom); }
-    template<class T> std::optional<T*> refine(T* old_nom) { return man().refine(index(), old_nom); }
-    template<class T> std::pair<T*, T*> trace(T* new_nom) { return man().trace(index(), new_nom, new_nom); }
-    void invalidate(Def* new_nom) { return man().invalidate(index(), new_nom); }
     //@}
     /// @name alloc/dealloc state
     //@{

@@ -32,7 +32,6 @@ void PassMan::pop_states(size_t undo) {
 
 void PassMan::run() {
     world().ILOG("run");
-    refine_.resize(num_passes());
     push_state();
 
     for (auto&& pass : passes_)
@@ -89,10 +88,10 @@ const Def* PassMan::rewrite(Def* cur_nom, const Def* old_def) {
     Array<const Def*> new_ops(old_def->num_ops(), [&](size_t i) { return rewrite(cur_nom, old_def->op(i)); });
     auto new_def = old_def->rebuild(world(), new_type, new_ops, new_dbg);
 
-    for (auto&& pass : passes_) {
-        auto prev_def = new_def;
-        new_def = pass->rewrite(cur_nom, new_def);
-        if (prev_def != new_def) new_def = rewrite(cur_nom, new_def);
+    for (size_t i = 0, e = num_passes(); i != e; ++i) {
+        auto old_def = new_def;
+        new_def = passes_[i]->rewrite(cur_nom, new_def);
+        if (old_def != new_def) new_def = rewrite(cur_nom, new_def);
     }
 
     return map(old_def, new_def);
