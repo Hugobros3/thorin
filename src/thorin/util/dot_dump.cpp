@@ -27,7 +27,6 @@ public:
 
         for (Continuation* ext : world.externals()) {
             dump_continuation(ext, nullptr);
-            //file << endl << ext->name() << " : " << ext->ret_param()->type() << ";";
         }
 
         file << down << endl << "}" << endl;
@@ -51,9 +50,9 @@ void DotPrinter::dump_def(const Def* def, const Def* parent) {
     else if (def->isa<PrimOp>())
         dump_primop(def->as<PrimOp>());
     else if (def->isa<Param>())
-        dump_def_generic(def, "grey", "rectangle");
+        dump_def_generic(def, "grey", "oval");
     else
-        dump_def_generic(def, "lightgrey", "oval");
+        dump_def_generic(def, "red", "star");
 }
 
 void DotPrinter::dump_def_generic(const Def* def, const char* color, const char* shape) {
@@ -72,9 +71,10 @@ void DotPrinter::dump_def_generic(const Def* def, const char* color, const char*
 
     done.emplace(def);
 
-    for (auto op : def->ops()) {
+    for (size_t i = 0; i < def->num_ops(); i++) {
+        const auto& op = def->op(i);
         dump_def(op, def);
-        file << endl << def->unique_name() << " -> " << op->unique_name() << ";";
+        file << endl << def->unique_name() << " -> " << op->unique_name() << " [arrowhead=vee,label=\"o" << i << "\",fontsize=8,fontcolor=grey];";
     }
 }
 
@@ -82,10 +82,7 @@ void DotPrinter::dump_literal(const Literal* def) {
     file << endl << def->unique_name() << " [" << up;
 
     file << endl << "label = \"";
-
     file << def;
-    //file << def->name() << " : " << def->type();
-
     file << "\";";
 
     //file << endl << "shape = square;";
@@ -104,20 +101,25 @@ void DotPrinter::dump_primop(const PrimOp* def) {
     file << endl << "label = \"";
 
     file << def->op_name();
-    //file << def->name() << " : " << def->type();
+
+    auto variant = def->isa<Variant>();
+    auto variant_extract = def->isa<VariantExtract>();
+    if (variant || variant_extract )
+        file << "(" << (variant ? variant->index() : variant_extract->index()) << ")";
 
     file << "\";";
 
-    //file << endl << "shape = square;";
-    //file << endl << "style = dotted;";
+    file << endl << "color = darkseagreen1;";
+    file << endl << "style = filled;";
 
     file << down << endl << "]";
 
     done.emplace(def);
 
-    for (auto op : def->ops()) {
+    for (size_t i = 0; i < def->num_ops(); i++) {
+        const auto& op = def->op(i);
         dump_def(op, def);
-        file << endl << def->unique_name() << " -> " << op->unique_name() << ";";
+        file << endl << def->unique_name() << " -> " << op->unique_name() << " [arrowhead=vee,label=\"o" << i << "\",fontsize=8,fontcolor=grey];";
     }
 }
 
@@ -143,32 +145,39 @@ void DotPrinter::dump_continuation(const Continuation* cont, const Def* parent) 
     }
     file << ")";
 
-    if (cont->is_returning())
+    /*if (cont->is_returning())
         file << " -> " << cont->ret_param()->type();
     else
-        file << " -> !";
+        file << " -> !";*/
 
     file << "\";";
 
     file << endl << "shape = rectangle;";
-    if (intrinsic != Intrinsic::None)
-        file << endl << "color = blue;";
+    if (intrinsic != Intrinsic::None) {
+        file << endl << "color = lightblue;";
+        file << endl << "style = filled;";
+    }
+    if (cont->is_external()) {
+        file << endl << "color = pink;";
+        file << endl << "style = filled;";
+    }
 
     file << down << endl << "]";
 
     done.emplace(cont);
 
+    for (size_t i = 0; i < cont->num_args(); i++) {
+        auto arg = cont->arg(i);
+        dump_def(arg, cont);
+        file << endl << arg->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=onormal,label=\"a" << i << "\",fontsize=8,fontcolor=grey];";
+    }
 
     switch (intrinsic) {
-        case Intrinsic::Match: {
-            // For some ridiculous reason the operands live in the parent continuation
-            Continuation* parent_cont = parent->as_continuation();
-            for (size_t i = 1; i < parent_cont->num_ops(); i++) {
-                dump_def(parent_cont->op(i), parent_cont);
-                file << endl << cont->unique_name() << " -> " << parent_cont->op(i)->unique_name() << ";";
-            }
+        // We don't care about the params for these, or the callee
+        case Intrinsic::Match:
+        case Intrinsic::Branch:
             return;
-        }
+
         default:
             break;
     }
@@ -176,17 +185,11 @@ void DotPrinter::dump_continuation(const Continuation* cont, const Def* parent) 
     for (size_t i = 0; i < cont->num_params(); i++) {
         auto param = cont->param(i);
         dump_def(param, cont);
-        file << endl << param->unique_name() << " -> " << cont->unique_name() << " [arrowhead=none];";
-    }
-
-    for (size_t i = 0; i < cont->num_args(); i++) {
-        auto arg = cont->arg(i);
-        dump_def(arg, cont);
-        file << endl << arg->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=onormal];";
+        file << endl << param->unique_name() << " -> " << cont->unique_name() << " [arrowhead=none,label=\"p" << i << "\",fontsize=8,fontcolor=grey];";
     }
 
     dump_def(cont->callee(), cont);
-    file << endl << cont->unique_name() << " -> " << cont->callee()->unique_name() << ";";
+    file << endl << cont->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=normal];";
 }
 
 #endif //DOT_DUMP_H
