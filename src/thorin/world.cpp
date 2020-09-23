@@ -1012,4 +1012,10 @@ void World::thorin() const {
     write_thorin(filename.c_str());
 }
 
+#include "util/dot_dump.cpp"
+
+void World::dump_dot() {
+    DotPrinter(*this).print();
+}
+
 }

@@ -208,6 +208,8 @@ public:
     void write_thorin(const char* filename) const;              ///< Dumps thorin to file with name @p filename.
     void thorin() const;                                        ///< Dumps thorin to a file with an auto-generated file name.
 
+    void dump_dot();
+
     friend void swap(World& w1, World& w2) {
         using std::swap;
         swap(static_cast<TypeTable&>(w1), static_cast<TypeTable&>(w2));
