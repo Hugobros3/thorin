@@ -128,7 +128,7 @@ void DotPrinter::dump_continuation(const Continuation* cont) {
     if (cont->is_external())
         file << "[extern]\\n";
     auto name = cont->name();
-    if (name.empty())
+    if (!cont->is_external())
         name = cont->unique_name();
     file << name << "(";
     for (size_t i = 0; i < cont->num_params(); i++) {
@@ -152,7 +152,11 @@ void DotPrinter::dump_continuation(const Continuation* cont) {
     for (size_t i = 0; i < cont->num_args(); i++) {
         auto arg = cont->arg(i);
         dump_def(arg);
-        file << endl << arg->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=onormal,label=\"a" << i << "\",fontsize=8,fontcolor=grey];";
+
+        if (cont->callee()->uses().size() > 1)
+            file << endl << arg->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=onormal,label=\"a" << i << " from " << cont->unique_name() << "\",fontsize=8,fontcolor=grey];";
+        else
+            file << endl << arg->unique_name() << " -> " << cont->callee()->unique_name() << " [arrowhead=onormal,label=\"a" << i << "\",fontsize=8,fontcolor=grey];";
     }
 
     switch (intrinsic) {
